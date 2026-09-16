@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0b0f14;
+}
+
+.dashboard {
+  font-family: 'Consolas', 'Courier New', system-ui, monospace;
+  background: #0b0f14;
+  color: #e6e8eb;
+  min-height: 100vh;
+  padding: 1rem 1.5rem;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #1f2833;
+  padding-bottom: 0.75rem;
+}
+header h1 {
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  color: #4ade80;
+  margin: 0;
+}
+.header-right { display: flex; align-items: center; gap: 1rem; }
+
+.status-pill {
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.status-pill.online { background: #163d2b; color: #4ade80; }
+.status-pill.offline { background: #3d1616; color: #f87171; }
+
+.planner-toggle, .plan-toggle, .clear-btn, .upload-btn, .filter-btn, .remove-btn {
+  background: #1f2833;
+  color: #e6e8eb;
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.plan-toggle.active { background: #163d2b; border-color: #4ade80; color: #4ade80; }
+.upload-btn { width: 100%; margin-top: 0.5rem; background: #163d2b; border-color: #4ade80; color: #4ade80; }
+.upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-auto-rows: minmax(160px, auto);
+  gap: 1rem;
+}
+
+.panel {
+  background: #131a22;
+  border: 1px solid #1f2833;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow: hidden;
+}
+.panel h2 {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: #8b98a5;
+  margin: 0 0 0.6rem 0;
+  text-transform: uppercase;
+}
+
+.map-panel { grid-row: span 2; min-height: 420px; }
+.map-wrap { height: 360px; border-radius: 4px; overflow: hidden; }
+
+.telemetry-strip {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 2.5rem;
+}
+.telemetry-strip label { display: block; font-size: 0.65rem; color: #8b98a5; letter-spacing: 0.05em; }
+.telemetry-strip span { font-size: 1.5rem; font-weight: 700; color: #4ade80; }
+
+.muted { color: #64748b; font-size: 0.8rem; }
+.muted.small { font-size: 0.7rem; margin-top: 0.4rem; }
+
+/* Map markers */
+.drone-marker {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #4ade80; border: 2px solid #0b0f14;
+  box-shadow: 0 0 8px #4ade80;
+}
+.hazard-marker {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid #0b0f14;
+}
+.waypoint-marker {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #60a5fa; color: #0b0f14; border: 2px solid #0b0f14;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.waypoint-marker.selected { background: #4ade80; }
+
+/* Telemetry graphs */
+.telemetry-graphs { display: flex; flex-direction: column; gap: 0.5rem; }
+.chart-label { font-size: 0.7rem; color: #8b98a5; }
+
+/* Threat timeline */
+.timeline-filters { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
+.timeline-filters .filter-btn.active { background: #163d2b; border-color: #4ade80; color: #4ade80; }
+.timeline-list { list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; }
+.timeline-entry {
+  display: flex; gap: 0.6rem; padding: 0.4rem 0.5rem; font-size: 0.78rem;
+  border-left: 3px solid #334155; margin-bottom: 0.25rem; background: #0f151c;
+}
+.timeline-entry.sev-critical { border-left-color: #f87171; }
+.timeline-entry.sev-warning { border-left-color: #fbbf24; }
+.timeline-entry.sev-info { border-left-color: #60a5fa; }
+.timeline-time { color: #64748b; font-size: 0.7rem; white-space: nowrap; }
+
+/* Camera feed */
+.camera-placeholder {
+  background: #0f151c; border: 1px dashed #2a3542; border-radius: 4px;
+  padding: 1rem; margin-bottom: 0.6rem;
+}
+.detection-stream { list-style: none; padding: 0; margin: 0; }
+.detection-stream li {
+  display: flex; gap: 0.6rem; padding: 0.35rem 0.5rem; font-size: 0.78rem;
+  background: #0f151c; margin-bottom: 0.25rem;
+}
+.det-label { flex: 1; }
+.det-conf { color: #8b98a5; }
+
+/* Mission planner */
+.planner-header { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+.waypoint-list { list-style: none; padding: 0; margin: 0; max-height: 240px; overflow-y: auto; }
+.waypoint-row {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem;
+  background: #0f151c; margin-bottom: 0.3rem; border-radius: 4px; cursor: pointer;
+  font-size: 0.75rem;
+}
+.waypoint-row.selected { outline: 1px solid #4ade80; }
+.wp-index {
+  width: 20px; height: 20px; border-radius: 50%; background: #1f2833;
+  display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+}
+.wp-coords { flex: 1; color: #8b98a5; }
+.waypoint-row label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; color: #8b98a5; }
+.waypoint-row input {
+  width: 45px; background: #1f2833; border: 1px solid #2a3542; color: #e6e8eb;
+  border-radius: 3px; padding: 0.1rem 0.3rem; font-size: 0.7rem;
+}
+.remove-btn { padding: 0.1rem 0.4rem; }
+.mission-name-input {
+  width: 100%; background: #1f2833; border: 1px solid #2a3542; color: #e6e8eb;
+  border-radius: 4px; padding: 0.4rem 0.6rem; font-size: 0.75rem; margin-top: 0.6rem;
+  font-family: inherit;
+}
+.upload-success { color: #4ade80; font-size: 0.72rem; margin-top: 0.4rem; }
+.upload-error { color: #f87171; font-size: 0.72rem; margin-top: 0.4rem; }
+
+/* Mission control */
+.mc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.mc-name { font-size: 0.85rem; font-weight: 600; }
+.mc-state {
+  font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem;
+  border: 1px solid; border-radius: 4px; letter-spacing: 0.05em;
+}
+.mc-buttons { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.mc-buttons button {
+  flex: 1; background: #1f2833; color: #e6e8eb; border: 1px solid #2a3542;
+  border-radius: 4px; padding: 0.5rem; font-size: 0.8rem; cursor: pointer; font-family: inherit;
+}
+.mc-buttons button:disabled { opacity: 0.35; cursor: not-allowed; }
+.mc-buttons button:not(:disabled):hover { border-color: #4ade80; }
+.mc-buttons .mc-abort:not(:disabled) { border-color: #f87171; color: #f87171; }

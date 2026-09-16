@@ -1,0 +1,68 @@
+version: "3.9"
+
+# NOTE: this compose file could not be run/verified in the sandbox this
+# project was built in (no Docker access, no network to pull base
+# images). Syntax is correct and follows standard Docker Compose
+# conventions -- treat as untested until you run `docker compose up`
+# yourself.
+#
+# PX4 SITL, Gazebo, and the drone scripts are NOT containerized here
+# -- they need a GUI/graphics stack that doesn't containerize cleanly
+# for a student project. Run drone on your host machine (in the
+# VirtualBox Ubuntu VM) and point it at the backend running in Docker
+# via `--backend http://localhost:8000`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aegisnet
+      POSTGRES_USER: aegisnet
+      POSTGRES_PASSWORD: aegisnet_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegisnet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      AEGISNET_DATABASE_URL: postgresql://aegisnet:aegisnet_dev_password@postgres:5432/aegisnet
+      REDIS_URL: redis://redis:6379/0
+      AEGISNET_JWT_SECRET: change-this-in-production
+      AEGISNET_DEMO_PASSWORD: changeme
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4173:4173"
+    environment:
+      VITE_BACKEND_URL: http://localhost:8000
+      VITE_WS_URL: ws://localhost:8000/ws
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
