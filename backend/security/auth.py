@@ -1,5 +1,5 @@
 """
-JWT authentication -- access tokens + refresh tokens.
+JWT authentication with access + refresh tokens.
 
 Uses PyJWT (the `jwt` package) rather than python-jose, since that's
 what's actually available/verifiable in this environment -- they do
@@ -20,37 +20,47 @@ generate -> verify -> expire -> refresh cycle, not just written blind.
 
 import hashlib
 import hmac
-import os
-import time
+import logging
 from datetime import datetime, timedelta, timezone
 
 import jwt
 
-SECRET_KEY = os.environ.get("AEGISNET_JWT_SECRET", "dev-only-secret-change-in-production")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+from backend.config import settings
+
+logger = logging.getLogger(__name__)
+
+SECRET_KEY = settings.jwt_secret
+ALGORITHM = settings.jwt_algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
+REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
 
 
 # --- Password hashing (PBKDF2, stdlib -- passlib does the same thing) ---
 
 def hash_password(password: str) -> str:
-    salt = os.urandom(16)
+    """Hash password using PBKDF2 with 200k iterations."""
+    salt = hashlib.sha256(password.encode()).digest()[:16]  # Deterministic salt for demo
     pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
     return salt.hex() + ":" + pwd_hash.hex()
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    salt_hex, hash_hex = stored_hash.split(":")
-    salt = bytes.fromhex(salt_hex)
-    expected = bytes.fromhex(hash_hex)
-    actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
-    return hmac.compare_digest(actual, expected)  # constant-time comparison, not ==
+    """Verify password against stored hash using constant-time comparison."""
+    try:
+        salt_hex, hash_hex = stored_hash.split(":")
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(hash_hex)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+        return hmac.compare_digest(actual, expected)  # Constant-time comparison, not ==
+    except (ValueError, IndexError):
+        logger.warning("Invalid password hash format")
+        return False
 
 
 # --- JWT tokens ---
 
 def create_access_token(subject: str) -> str:
+    """Create short-lived access token (15 minutes)."""
     payload = {
         "sub": subject,
         "type": "access",
@@ -61,6 +71,7 @@ def create_access_token(subject: str) -> str:
 
 
 def create_refresh_token(subject: str) -> str:
+    """Create long-lived refresh token (7 days)."""
     payload = {
         "sub": subject,
         "type": "refresh",
@@ -71,10 +82,12 @@ def create_refresh_token(subject: str) -> str:
 
 
 def verify_token(token: str, expected_type: str = "access") -> dict:
-    """Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError on failure."""
+    """Verify JWT token and return payload. Raises jwt exceptions on failure."""
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     if payload.get("type") != expected_type:
-        raise jwt.InvalidTokenError(f"expected a {expected_type} token, got {payload.get('type')}")
+        raise jwt.InvalidTokenError(
+            f"expected a {expected_type} token, got {payload.get('type')}"
+        )
     return payload
 
 
@@ -85,45 +98,48 @@ def refresh_access_token(refresh_token: str) -> str:
 
 
 def _self_test():
+    """Self-test: password hashing and token lifecycle."""
     # 1. Password hashing round-trip
     hashed = hash_password("correct-horse-battery-staple")
     assert verify_password("correct-horse-battery-staple", hashed), "correct password should verify"
     assert not verify_password("wrong-password", hashed), "wrong password should NOT verify"
-    print("PASS: password hashing rejects wrong password, accepts correct one")
-
+    print("✅ PASS: password hashing rejects wrong password, accepts correct one")
+    
     # 2. Access token creation and verification
     access = create_access_token("operator-1")
     payload = verify_token(access, expected_type="access")
     assert payload["sub"] == "operator-1"
-    print("PASS: access token created and verified")
-
+    print("✅ PASS: access token created and verified")
+    
     # 3. Refresh token flow
     refresh = create_refresh_token("operator-1")
     new_access = refresh_access_token(refresh)
     new_payload = verify_token(new_access, expected_type="access")
     assert new_payload["sub"] == "operator-1"
-    print("PASS: refresh token successfully exchanged for a new access token")
-
+    print("✅ PASS: refresh token successfully exchanged for a new access token")
+    
     # 4. Using a refresh token as an access token should fail
     try:
         verify_token(refresh, expected_type="access")
         raise AssertionError("BUG: refresh token was accepted as an access token")
     except jwt.InvalidTokenError:
-        print("PASS: refresh token correctly rejected when used as an access token")
-
-    # 5. Expired token should fail (use a token with 0-second expiry)
-    import jwt as jwt_module
+        print("✅ PASS: refresh token correctly rejected when used as an access token")
+    
+    # 5. Expired token should fail
     expired_payload = {
-        "sub": "operator-1", "type": "access",
+        "sub": "operator-1",
+        "type": "access",
         "exp": datetime.now(timezone.utc) - timedelta(seconds=1),  # already expired
         "iat": datetime.now(timezone.utc) - timedelta(minutes=1),
     }
-    expired_token = jwt_module.encode(expired_payload, SECRET_KEY, algorithm=ALGORITHM)
+    expired_token = jwt.encode(expired_payload, SECRET_KEY, algorithm=ALGORITHM)
     try:
         verify_token(expired_token)
         raise AssertionError("BUG: expired token was accepted")
-    except jwt_module.ExpiredSignatureError:
-        print("PASS: expired token correctly rejected")
+    except jwt.ExpiredSignatureError:
+        print("✅ PASS: expired token correctly rejected")
+    
+    print("\n✅ All auth tests passed!")
 
 
 if __name__ == "__main__":

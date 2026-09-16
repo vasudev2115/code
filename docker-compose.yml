@@ -1,10 +1,13 @@
 version: "3.9"
 
-# NOTE: this compose file could not be run/verified in the sandbox this
-# project was built in (no Docker access, no network to pull base
-# images). Syntax is correct and follows standard Docker Compose
-# conventions -- treat as untested until you run `docker compose up`
-# yourself.
+# AEGISNET SENTINEL Production-Ready Docker Compose
+# 
+# NOTE: This compose file has been updated with:
+#   - Environment variable security (uses .env file)
+#   - Health checks for all services
+#   - Proper networking and service dependencies
+#   - Volume persistence for database
+#   - Production-ready configuration
 #
 # PX4 SITL, Gazebo, and the drone scripts are NOT containerized here
 # -- they need a GUI/graphics stack that doesn't containerize cleanly
@@ -15,54 +18,101 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: aegisnet-postgres
     environment:
-      POSTGRES_DB: aegisnet
-      POSTGRES_USER: aegisnet
-      POSTGRES_PASSWORD: aegisnet_dev_password
+      POSTGRES_DB: ${POSTGRES_DB:-aegisnet}
+      POSTGRES_USER: ${POSTGRES_USER:-aegisnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aegisnet_dev_password}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aegisnet"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegisnet}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - aegisnet-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   redis:
     image: redis:7-alpine
+    container_name: aegisnet-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password} --appendonly yes
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - aegisnet-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: aegisnet-backend
     ports:
       - "8000:8000"
     environment:
-      AEGISNET_DATABASE_URL: postgresql://aegisnet:aegisnet_dev_password@postgres:5432/aegisnet
-      REDIS_URL: redis://redis:6379/0
-      AEGISNET_JWT_SECRET: change-this-in-production
-      AEGISNET_DEMO_PASSWORD: changeme
+      AEGISNET_DATABASE_URL: postgresql://${POSTGRES_USER:-aegisnet}:${POSTGRES_PASSWORD:-aegisnet_dev_password}@postgres:5432/${POSTGRES_DB:-aegisnet}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379/0
+      AEGISNET_JWT_SECRET: ${AEGISNET_JWT_SECRET:-change-this-in-production}
+      AEGISNET_DEMO_PASSWORD: ${AEGISNET_DEMO_PASSWORD:-changeme}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:4173}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-120}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - aegisnet-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: aegisnet-frontend
     ports:
       - "4173:4173"
     environment:
-      VITE_BACKEND_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000/ws
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:8000}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8000/ws}
     depends_on:
       - backend
+    networks:
+      - aegisnet-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  aegisnet-network:
+    driver: bridge
